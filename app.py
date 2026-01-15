@@ -41,25 +41,120 @@ FEATURES = [
 ]
 
 # ----------------------------
-# Input UI
+# Inference UI
 # ----------------------------
-st.subheader("Property Details")
-
-DaysOnMarket = st.number_input("Days on Market", min_value=0, value=30)
-Latitude = st.number_input("Latitude", value=34.05)
-Longitude = st.number_input("Longitude", value=-118.25)
-BathroomsTotalInteger = st.number_input("Bathrooms", min_value=0.0, value=2.0)
-LivingArea = st.number_input("Living Area (sqft)", min_value=0.0, value=1500.0)
-FireplaceYN = st.checkbox("Fireplace")
-YearBuilt = st.number_input("Year Built", min_value=1800, value=1990)
-ParkingTotal = st.number_input("Parking Spaces", min_value=0.0, value=2.0)
-BedroomsTotal = st.number_input("Bedrooms", min_value=0.0, value=3.0)
-PoolPrivateYN = st.checkbox("Private Pool")
-LotSizeAcres = st.number_input("Lot Size (acres)", min_value=0.0, value=0.15)
-Stories = st.number_input("Stories", min_value=0.0, value=1.0)
+st.subheader("Property Information")
 
 # ----------------------------
-# Assemble input (STRICT)
+# Location
+# ----------------------------
+with st.expander("📍 Location", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        Latitude = st.number_input(
+            "Latitude",
+            min_value=32.0,
+            max_value=42.0,
+            step=0.0001,
+            value=34.05
+        )
+    with col2:
+        Longitude = st.number_input(
+            "Longitude",
+            min_value=-125.0,
+            max_value=-114.0,
+            step=0.0001,
+            value=-118.25
+        )
+
+# ----------------------------
+# Home Details
+# ----------------------------
+with st.expander("🏠 Home Details", expanded=True):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        BedroomsTotal = st.number_input(
+            "Bedrooms",
+            min_value=0,
+            max_value=10,
+            step=1,
+            value=3
+        )
+
+        BathroomsTotalInteger = st.number_input(
+            "Bathrooms",
+            min_value=0.0,
+            max_value=10.0,
+            step=0.5,
+            value=2.0
+        )
+
+        Stories = st.number_input(
+            "Stories",
+            min_value=1,
+            max_value=5,
+            step=1,
+            value=1
+        )
+
+    with col2:
+        LivingArea = st.number_input(
+            "Living Area (sqft)",
+            min_value=300,
+            max_value=10000,
+            step=50,
+            value=1500
+        )
+
+        YearBuilt = st.number_input(
+            "Year Built",
+            min_value=1850,
+            max_value=2025,
+            step=1,
+            value=1990
+        )
+
+# ----------------------------
+# Amenities
+# ----------------------------
+with st.expander("✨ Amenities", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        FireplaceYN = st.checkbox("Fireplace")
+    with col2:
+        PoolPrivateYN = st.checkbox("Private Pool")
+
+    ParkingTotal = st.number_input(
+        "Parking Spaces",
+        min_value=0,
+        max_value=10,
+        step=1,
+        value=2
+    )
+
+# ----------------------------
+# Market & Lot
+# ----------------------------
+with st.expander("📊 Market & Lot", expanded=True):
+    DaysOnMarket = st.number_input(
+        "Days on Market",
+        min_value=0,
+        max_value=365,
+        step=1,
+        value=30
+    )
+
+    LotSizeAcres = st.number_input(
+        "Lot Size (acres)",
+        min_value=0.0,
+        max_value=10.0,
+        step=0.01,
+        value=0.15
+    )
+
+# ----------------------------
+# Assemble input (STRICT MODEL ORDER)
 # ----------------------------
 input_data = pd.DataFrame(
     [[
@@ -86,4 +181,5 @@ if st.button("Predict Price"):
     log_price = model.predict(input_data)[0]
     price = np.exp(log_price)
 
-    st.success(f"Estimated Sale Price: ${price:,.0f}")
+    st.metric("Estimated Sale Price", f"${price:,.0f}")
+    st.caption("Estimate is for informational purposes only.")
