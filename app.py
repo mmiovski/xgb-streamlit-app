@@ -191,19 +191,41 @@ if page == "Inference":
         st.metric("Estimated Sale Price", f"${price:,.0f}")
         st.caption("Note: This estimate is for demonstrational purposes only.")
 
-# ============================================================
-# PAGE: Model Information (placeholder)
-# ============================================================
+# model information 
 elif page == "Model Information":
     st.subheader("Model Information")
 
-    st.write(
-        "This page will summarize the dataset, modeling approach, and interpretability "
-        "tools (feature importance, SHAP), plus limitations and stability checks."
+    st.markdown(
+        """
+        This application uses an **XGBoost regression model** trained on California MLS data.
+        The target variable is **log-transformed sale price**, which stabilizes variance and
+        improves predictive performance. Predictions shown in the app are converted back to
+        dollar terms for interpretability.
+        """
     )
 
-    st.markdown("### Coming next")
-    st.markdown("- Data overview (high-level EDA)")
-    st.markdown("- Global feature importance")
-    st.markdown("- SHAP (global + local explanations)")
-    st.markdown("- Stability / robustness and known limitations")
+    st.markdown("### Global Feature Importance")
+
+    # XGBoost gain-based feature importance
+    importances = model.feature_importances_
+
+    fi_df = (
+        pd.DataFrame({
+            "Feature": FEATURES,
+            "Importance": importances
+        })
+        .sort_values("Importance", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    st.dataframe(fi_df, use_container_width=True)
+
+    st.bar_chart(
+        fi_df.set_index("Feature")["Importance"]
+    )
+
+    st.caption(
+        "Feature importance reflects how much each feature contributes to reducing prediction "
+        "error across all trees in the model (higher = more influence)."
+    )
+
