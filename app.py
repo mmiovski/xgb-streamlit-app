@@ -2,6 +2,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import joblib
+import shap
+import matplotlib.pyplot as plt
 
 # app configuration
 st.set_page_config(
@@ -18,6 +20,12 @@ def load_model():
     return joblib.load("xgb.pkl")
 
 model = load_model()
+
+@st.cache_resource
+def load_shap_explainer(model):
+    return shap.TreeExplainer(model)
+
+explainer = load_shap_explainer(model)
 
 # feature order (MUST MATCH TRAINING)
 FEATURES = [
@@ -191,7 +199,9 @@ if page == "Inference":
         st.metric("Estimated Sale Price", f"${price:,.0f}")
         st.caption("Note: This estimate is for demonstrational purposes only.")
 
-# model information 
+# ============================================================
+# PAGE: Model Information
+# ============================================================
 elif page == "Model Information":
     st.subheader("Model Information")
 
@@ -206,7 +216,6 @@ elif page == "Model Information":
 
     st.markdown("### Global Feature Importance")
 
-    # XGBoost gain-based feature importance
     importances = model.feature_importances_
 
     fi_df = (
@@ -228,4 +237,43 @@ elif page == "Model Information":
         "Feature importance reflects how much each feature contributes to reducing prediction "
         "error across all trees in the model (higher = more influence)."
     )
+
+    # ----------------------------
+    # SHAP: Local Explanation
+    # ----------------------------
+    st.markdown("### SHAP: Local Explanation (Example)")
+
+    st.markdown(
+        """
+        SHAP values explain how each feature contributes to a prediction.
+        The plot below shows how individual features push the prediction
+        higher or lower relative to the model's baseline.
+        """
+    )
+
+    example_input = pd.DataFrame(
+        [input_data.iloc[0].values],
+        columns=FEATURES
+    )
+
+    shap_values = explainer.shap_values(example_input)
+
+    fig, ax = plt.subplots()
+    shap.waterfall_plot(
+        shap.Explanation(
+            values=shap_values[0],
+            base_values=explainer.expected_value,
+            data=example_input.iloc[0],
+            feature_names=FEATURES
+        ),
+        show=False
+    )
+
+    st.pyplot(fig)
+
+    st.caption(
+        "Positive SHAP values increase the predicted price; negative values decrease it."
+    )
+
+
 
