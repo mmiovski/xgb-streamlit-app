@@ -32,7 +32,7 @@ def load_shap_explainer():
 explainer = load_shap_explainer()
 
 @st.cache_data
-def compute_global_shap(explainer, background):
+def compute_global_shap(background):
     return explainer.shap_values(background)
 
 # feature order (MUST MATCH TRAINING)
@@ -268,7 +268,7 @@ elif page == "Model Information":
     )
 
     background = load_shap_background()
-    global_shap_values = compute_global_shap(explainer, background)
+    global_shap_values = compute_global_shap(background)
 
     fig, ax = plt.subplots()
     shap.summary_plot(
