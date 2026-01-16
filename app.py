@@ -191,6 +191,8 @@ if page == "Inference":
         columns=FEATURES
     ).astype(float)
 
+    st.session_state["last_input"] = input_data
+    
     # Prediction
     if st.button("Predict Price"):
         log_price = model.predict(input_data)[0]
@@ -251,10 +253,11 @@ elif page == "Model Information":
         """
     )
 
-    example_input = pd.DataFrame(
-        [input_data.iloc[0].values],
-        columns=FEATURES
-    )
+    if "last_input" in st.session_state:
+        example_input = st.session_state["last_input"]
+    else:
+        st.warning("Run a prediction first to see a SHAP explanation.")
+        st.stop()
 
     shap_values = explainer.shap_values(example_input)
 
