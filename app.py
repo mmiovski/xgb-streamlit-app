@@ -216,6 +216,9 @@ elif page == "Model Information":
         """
     )
 
+    # ----------------------------
+    # Global Feature Importance
+    # ----------------------------
     st.markdown("### Global Feature Importance")
 
     importances = model.feature_importances_
@@ -248,24 +251,53 @@ elif page == "Model Information":
     st.markdown(
         """
         SHAP values explain how each feature contributes to a prediction.
-        The plot below shows how individual features push the prediction
-        higher or lower relative to the model's baseline.
+        The model was trained on **log-transformed sale prices**, so all SHAP
+        values are shown in **log(price) space**.
         """
     )
 
-    if "last_input" in st.session_state:
-        example_input = st.session_state["last_input"]
-    else:
+    # Ensure we have a prior prediction
+    if "last_input" not in st.session_state:
         st.warning("Run a prediction first to see a SHAP explanation.")
         st.stop()
 
+    example_input = st.session_state["last_input"]
+
+    # ----------------------------
+    # Baseline explanation
+    # ----------------------------
+    baseline_log = explainer.expected_value
+    baseline_price = np.exp(baseline_log)
+
+    st.info(
+        f"""
+        **Understanding the baseline**
+
+        The baseline value **E[f(X)] = {baseline_log:.3f}** represents the model’s
+        average predicted **log(price)** across the training data.
+
+        Converting this to dollars:
+
+        **Baseline price ≈ ${baseline_price:,.0f}**
+
+        SHAP values below explain how each feature moves the prediction
+        *away from this baseline* to reach the final estimate.
+        """
+    )
+
+    # ----------------------------
+    # Compute SHAP values
+    # ----------------------------
     shap_values = explainer.shap_values(example_input)
 
+    # ----------------------------
+    # SHAP waterfall plot
+    # ----------------------------
     fig, ax = plt.subplots()
     shap.waterfall_plot(
         shap.Explanation(
             values=shap_values[0],
-            base_values=explainer.expected_value,
+            base_values=baseline_log,
             data=example_input.iloc[0],
             feature_names=FEATURES
         ),
@@ -274,9 +306,27 @@ elif page == "Model Information":
 
     st.pyplot(fig)
 
-    st.caption(
-        "Positive SHAP values increase the predicted price; negative values decrease it."
+    # ----------------------------
+    # Final prediction (log + dollars)
+    # ----------------------------
+    final_log = model.predict(example_input)[0]
+    final_price = np.exp(final_log)
+
+    st.success(
+        f"""
+        **Final prediction**
+
+        log(price) = {final_log:.3f}  
+        Estimated sale price ≈ **${final_price:,.0f}**
+        """
     )
+
+    st.caption(
+        "Positive SHAP values increase the predicted price; negative values decrease it. "
+        "All values are additive in log-price space."
+    )
+
+
 
 
 
