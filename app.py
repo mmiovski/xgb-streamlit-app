@@ -21,11 +21,19 @@ def load_model():
 
 model = load_model()
 
+@st.cache_data
+def load_shap_background():
+    return pd.read_csv("shap_background.csv")
+
 @st.cache_resource
 def load_shap_explainer():
     return shap.TreeExplainer(model)
 
 explainer = load_shap_explainer()
+
+@st.cache_data
+def compute_global_shap(explainer, background):
+    return explainer.shap_values(background)
 
 # feature order (MUST MATCH TRAINING)
 FEATURES = [
@@ -40,7 +48,7 @@ FEATURES = [
     "BedroomsTotal",
     "PoolPrivateYN",
     "LotSizeAcres",
-    "Stories",
+    "Stories"
 ]
 
 # ----------------------------
@@ -192,7 +200,7 @@ if page == "Inference":
     ).astype(float)
 
     st.session_state["last_input"] = input_data
-    
+
     # Prediction
     if st.button("Predict Price"):
         log_price = model.predict(input_data)[0]
@@ -244,6 +252,40 @@ elif page == "Model Information":
     )
 
     # ----------------------------
+    # SHAP: Global Explanation
+    # ----------------------------
+    st.markdown("### SHAP: Global Feature Impact")
+
+    st.markdown(
+        """
+        This plot summarizes **global feature effects** across a representative
+        sample of homes from the training distribution.
+
+        Each point represents one home. The horizontal axis shows how a feature
+        impacts the model’s **log-price prediction**, while color indicates whether
+        the feature value is high (red) or low (blue).
+        """
+    )
+
+    background = load_shap_background()
+    global_shap_values = compute_global_shap(explainer, background)
+
+    fig, ax = plt.subplots()
+    shap.summary_plot(
+        global_shap_values,
+        background,
+        feature_names=FEATURES,
+        show=False
+    )
+
+    st.pyplot(fig)
+
+    st.caption(
+        "Global SHAP values are shown in log-price space. Features are ordered by "
+        "overall importance across the dataset."
+    )
+
+    # ----------------------------
     # SHAP: Local Explanation
     # ----------------------------
     st.markdown("### SHAP: Local Explanation (Example)")
@@ -256,16 +298,12 @@ elif page == "Model Information":
         """
     )
 
-    # Ensure we have a prior prediction
     if "last_input" not in st.session_state:
         st.warning("Run a prediction first to see a SHAP explanation.")
         st.stop()
 
     example_input = st.session_state["last_input"]
 
-    # ----------------------------
-    # Baseline explanation
-    # ----------------------------
     baseline_log = explainer.expected_value
     baseline_price = np.exp(baseline_log)
 
@@ -285,14 +323,8 @@ elif page == "Model Information":
         """
     )
 
-    # ----------------------------
-    # Compute SHAP values
-    # ----------------------------
     shap_values = explainer.shap_values(example_input)
 
-    # ----------------------------
-    # SHAP waterfall plot
-    # ----------------------------
     fig, ax = plt.subplots()
     shap.waterfall_plot(
         shap.Explanation(
@@ -306,9 +338,6 @@ elif page == "Model Information":
 
     st.pyplot(fig)
 
-    # ----------------------------
-    # Final prediction (log + dollars)
-    # ----------------------------
     final_log = model.predict(example_input)[0]
     final_price = np.exp(final_log)
 
@@ -325,6 +354,7 @@ elif page == "Model Information":
         "Positive SHAP values increase the predicted price; negative values decrease it. "
         "All values are additive in log-price space."
     )
+
 
 
 
