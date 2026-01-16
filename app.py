@@ -22,10 +22,10 @@ def load_model():
 model = load_model()
 
 @st.cache_resource
-def load_shap_explainer(model):
+def load_shap_explainer():
     return shap.TreeExplainer(model)
 
-explainer = load_shap_explainer(model)
+explainer = load_shap_explainer()
 
 # feature order (MUST MATCH TRAINING)
 FEATURES = [
