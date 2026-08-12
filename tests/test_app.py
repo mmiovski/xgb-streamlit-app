@@ -27,7 +27,7 @@ def test_estimate_page_loads_and_predicts() -> None:
 
 def test_methodology_page_loads_without_calculating_shap() -> None:
     app = AppTest.from_file(PROJECT_ROOT / "app.py", default_timeout=45).run()
-    app.radio[0].set_value("Model and methodology")
+    app.radio[0].set_value("Methodology")
     app.run()
 
     assert not app.exception

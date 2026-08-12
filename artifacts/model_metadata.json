@@ -106,6 +106,6 @@
   "evidence": {
     "modeling_notebook": "notebooks/modeling.ipynb",
     "eda_notebook": "notebooks/eda.ipynb",
-    "price_band_source": "CPU publication-notebook rerun with the documented fixed configuration"
+    "price_band_source": "CPU modeling-notebook rerun with the documented fixed configuration"
   }
 }

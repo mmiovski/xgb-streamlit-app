@@ -138,7 +138,7 @@ html, body, [class*="css"] {
 
 .metric-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.85rem;
     margin: 1rem 0 1.6rem;
 }
@@ -306,7 +306,7 @@ div[data-testid="stDataFrame"] {
 }
 
 @media (max-width: 860px) {
-    .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .hero { padding: 1.7rem 1.35rem; min-height: 230px; }
     .hero-wave { opacity: 0.3; }
@@ -314,7 +314,7 @@ div[data-testid="stDataFrame"] {
 
 @media (max-width: 520px) {
     [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; }
-    .metric-grid { grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+    .metric-grid { grid-template-columns: 1fr; gap: 0.55rem; }
     .metric-card { padding: 0.8rem; }
     .metric-value { font-size: 1.28rem; }
     .pipeline { grid-template-columns: 1fr; }

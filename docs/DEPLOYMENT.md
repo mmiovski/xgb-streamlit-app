@@ -1,6 +1,6 @@
 # Streamlit Community Cloud Deployment
 
-This repository is deployed on Streamlit Community Cloud. The existing application tracks the repository's `main` branch and updates in place after approved pushes.
+This repository is deployed on Streamlit Community Cloud. The application tracks the repository's `main` branch and updates in place after each push.
 
 ## Deployment coordinates
 
@@ -24,21 +24,20 @@ This repository is deployed on Streamlit Community Cloud. The existing applicati
 
 ## Update the existing deployment
 
-1. Complete local technical testing and user visual approval.
-2. Separately authorize a commit and push of the approved changes.
-3. Push the approved commit to `main`.
-4. Allow the existing Streamlit application to rebuild in place.
-5. Monitor startup until the public application reports a healthy state.
-6. Complete the post-deployment acceptance checklist below.
+1. Complete local technical and visual testing.
+2. Commit the tested changes and push them to `main`.
+3. Allow the existing Streamlit application to rebuild in place.
+4. Monitor startup until the application reports a healthy state.
+5. Complete the post-deployment checks below.
 
-## Verified post-deployment acceptance
+## Verified deployment checks
 
-The public deployment was verified on August 11, 2026:
+The deployment was verified on August 11, 2026:
 
 - The build installs from `requirements.txt` without manual intervention.
 - The landing page renders with no missing-artifact or checksum error.
 - The default form submission returns `$771,358`.
-- The Model and methodology page loads.
+- The Methodology page loads.
 - Gain importance renders.
 - On-demand global SHAP renders.
 - A submitted estimate produces a local SHAP chart.

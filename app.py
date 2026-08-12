@@ -84,7 +84,7 @@ def render_sidebar() -> str:
     st.sidebar.markdown(
         """
         <div class="sidebar-brand">
-          <p class="sidebar-kicker">Portfolio project</p>
+          <p class="sidebar-kicker">XGBoost regression</p>
           <p class="sidebar-title">California Home Price Model</p>
         </div>
         """,
@@ -92,16 +92,8 @@ def render_sidebar() -> str:
     )
     page = st.sidebar.radio(
         "Page",
-        ("Estimate", "Model and methodology"),
+        ("Estimate", "Methodology"),
         label_visibility="collapsed",
-    )
-    st.sidebar.markdown(
-        """
-        <div class="sidebar-note">
-          Built from 2025 California single-family-home sales. The deployed model does not use list price.
-        </div>
-        """,
-        unsafe_allow_html=True,
     )
     return page
 
@@ -114,7 +106,6 @@ def render_performance_grid(metadata: dict) -> None:
                 (f'{metrics["r2"]:.2f}', "Held-out R²"),
                 (f'{metrics["mape_percent"]:.2f}%', "Held-out MAPE"),
                 (f'{metrics["mdape_percent"]:.2f}%', "Held-out MdAPE"),
-                ("Sep-Oct 2025", "Evaluation period"),
             ]
         ),
         unsafe_allow_html=True,
@@ -125,8 +116,7 @@ def render_estimate_page(bundle) -> None:
     st.markdown(
         hero(
             "Estimate a California home sale price",
-            "Enter 12 property characteristics to generate a sale-price estimate. "
-            "The XGBoost model is list-unaware, so it can estimate homes without a listed price.",
+            "Enter property and location details to generate an estimate from the deployed model.",
             "List-unaware XGBoost model",
         ),
         unsafe_allow_html=True,
@@ -135,7 +125,7 @@ def render_estimate_page(bundle) -> None:
     st.markdown(
         """
         <div class="notice">
-          This analytical estimate is for demonstration only. It is not an appraisal, offer, lending decision, or financial recommendation. Accuracy varies by property and price segment.
+          This analytical estimate is informational only. It is not an appraisal, offer, lending decision, or financial recommendation. Accuracy varies by property and price segment.
         </div>
         """,
         unsafe_allow_html=True,
@@ -286,7 +276,7 @@ def render_estimate_page(bundle) -> None:
             <div class="prediction-card">
               <p class="prediction-label">Estimated sale price</p>
               <p class="prediction-value">{format_currency(prediction.price)}</p>
-              <p class="prediction-caption">Generated from the submitted property details. Review the model page for methodology, held-out performance, and feature-level explanations.</p>
+              <p class="prediction-caption">Open Methodology for evaluation details and feature explanations.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -305,17 +295,16 @@ def render_methodology_page(bundle) -> None:
     metadata = bundle.metadata
     st.markdown(
         hero(
-            "From monthly sales records to an interactive estimate",
-            "The project covers exploratory analysis, leakage-aware preprocessing, chronological evaluation, native model packaging, and Streamlit deployment.",
-            "Model and methodology",
+            "How the model was built and evaluated",
+            "Review the data split, preprocessing, evaluation, and explanation design behind the deployed model.",
+            "Evidence and design",
         ),
         unsafe_allow_html=True,
     )
-    render_performance_grid(metadata)
 
     section_heading(
-        "Pipeline",
-        "The public notebooks document the analysis and model build. Proprietary MLS source records are intentionally excluded.",
+        "Data-to-inference workflow",
+        "Ten monthly MLS files support a chronological training and evaluation design. Row-level source records remain excluded.",
     )
     st.markdown(
         """
@@ -334,10 +323,7 @@ def render_methodology_page(bundle) -> None:
     with left:
         st.subheader("Evaluation design")
         st.write(
-            "Training uses January through August 2025. September and October 2025 are held out as a later-time test set. The model predicts the natural logarithm of sale price, and the application converts the result back to US dollars with the exponential function."
-        )
-        st.write(
-            "The deployed variant excludes ListPrice and OriginalListPrice. This broadens its use to properties without an active listing and avoids relying on a near-direct proxy for sale price."
+            "Training uses January through August 2025; September and October form the later-time test set. ListPrice and OriginalListPrice are excluded so inference does not depend on an active listing or a near-direct proxy for sale price. Predictions are learned in natural-log space and converted back to US dollars with the exponential function."
         )
     with right:
         st.subheader("Training frame")
@@ -345,8 +331,8 @@ def render_methodology_page(bundle) -> None:
         st.caption("California single-family residences after documented preprocessing.")
 
     section_heading(
-        "Held-out performance",
-        "These metrics come from the modeling notebook's September-October evaluation. They are not results from the app's software smoke tests.",
+        "Error by price band",
+        "The aggregate metrics appear on the Estimate page. This table shows error variation across sale-price bands from the same held-out months.",
     )
     price_bands = pd.DataFrame(metadata["evaluation"]["price_bands"])
     price_bands.columns = ["Price band", "MAPE (%)", "MdAPE (%)"]
@@ -357,7 +343,7 @@ def render_methodology_page(bundle) -> None:
 
     section_heading(
         "Model features",
-        "The application preserves the exact names and order embedded in the native model artifact.",
+        "Inference passes these 12 inputs in the exact names and order embedded in the model.",
     )
     feature_table = pd.DataFrame(
         [
@@ -417,17 +403,17 @@ def render_methodology_page(bundle) -> None:
 
     section_heading(
         "Limitations",
-        "The application is a portfolio demonstration of an offline model, not a production valuation service.",
+        "Interpret each estimate within the scope and constraints below.",
     )
     st.markdown(
         """
         - The source data covers California single-family sales from 2025 and may not represent later market conditions.
 
-        - The model does not include renovation quality, interior condition, school assignments, views, or current macroeconomic conditions.
+        - The model does not include property condition, recent upgrades, school assignments, views, or current macroeconomic conditions.
 
         - Validation prevents obvious input errors but does not reproduce every MLS business rule or training-distribution constraint.
 
-        - A point estimate does not express uncertainty and should not be used as an appraisal, lending decision, or financial recommendation.
+        - The point estimate does not include a calibrated uncertainty interval.
         """
     )
 

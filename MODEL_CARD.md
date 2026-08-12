@@ -8,9 +8,9 @@ The model is served as a native XGBoost UBJSON artifact. The application predict
 
 ## Intended use
 
-- Demonstrate an end-to-end data science and Streamlit deployment workflow
-- Explore how a fixed 2025 California housing model responds to plausible property inputs
-- Provide an analytical estimate for portfolio demonstration
+- Estimate sale prices for plausible California single-family-home inputs
+- Inspect feature influence through gain importance and SHAP contributions
+- Document the temporal evaluation and inference workflow
 
 ## Out-of-scope use
 
@@ -38,7 +38,7 @@ The chronological split provides a more realistic later-time test than a random 
 | MAPE | 11.19% |
 | MdAPE | 7.75% |
 
-The CPU publication notebook reproduced these displayed results with the pinned environment. Error differs by price band, and a single aggregate metric should not be interpreted as uniform accuracy.
+The executed modeling notebook reproduced these results on CPU with the pinned environment. Error differs by price band, and a single aggregate metric should not be interpreted as uniform accuracy.
 
 ## Features
 
@@ -86,10 +86,10 @@ The application verifies the native checksum and feature contract before inferen
 
 - The 2025 training window does not represent all market regimes.
 - Geographic coverage and feature distributions may be uneven.
-- Important value drivers such as condition, renovations, views, school assignments, and macroeconomic conditions are omitted.
+- Important value drivers such as property condition, recent upgrades, views, school assignments, and macroeconomic conditions are omitted.
 - The point estimate has no calibrated prediction interval.
 - Later deployment should monitor input drift, error by geography and price band, and temporal performance before retraining.
 
-## Ownership and deployment context
+## Project ownership
 
-Marko Miovski built the list-unaware model and Streamlit application during an IDXExchange data science internship. The five-person project included other model work. IDXExchange's later website integration was performed by others and is not represented as this application's deployment work.
+Marko Miovski built the list-unaware model and Streamlit application during an IDXExchange data science internship. The five-person team also developed other models. IDXExchange's later website integration was performed separately by others.

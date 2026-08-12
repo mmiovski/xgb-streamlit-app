@@ -1,4 +1,4 @@
-"""Create publication-ready notebook copies without changing the source notebooks."""
+"""Create cleaned, reproducible notebook copies without changing the sources."""
 
 from __future__ import annotations
 
@@ -72,9 +72,105 @@ def _repair_encoding(notebook: Notebook) -> None:
         cell["source"] = source.splitlines(keepends=True)
 
 
+def _replace_markdown_lines(
+    cell: dict[str, Any], replacements: dict[str, str]
+) -> None:
+    lines = []
+    for line in cell.get("source", ()):
+        replacement = next(
+            (value for prefix, value in replacements.items() if line.startswith(prefix)),
+            None,
+        )
+        lines.append(f"{replacement}\n" if replacement is not None else line)
+    cell["source"] = lines
+
+
 def prepare_eda(path: Path) -> Notebook:
     notebook = _load(path, expected_cells=76)
     cells = notebook["cells"]
+
+    _set_markdown(
+        cells[6],
+        """### Verify Housing Data Types and Structure
+
+Matching schemas are required before concatenating the monthly training files.""",
+    )
+    _set_markdown(
+        cells[12],
+        """Filter the records to:
+
+- `PropertyType = Residential`
+- `PropertySubType = SingleFamilyResidence`
+- `StateOrProvince = CA`
+
+`PropertyType=Residential` defines the broad residential category. `PropertySubType=SingleFamilyResidence` removes condos, townhouses, multifamily properties, and mobile homes, leaving detached houses. `StateOrProvince=CA` restricts the target population to California.""",
+    )
+    _replace_markdown_lines(
+        cells[19],
+        {
+            "`UnparsedAddress`": "`UnparsedAddress`, String, 0.109221, Text representation of the address with the full civic location and may OPTIONALLY include any of the City, StateOrProvince, PostcalCode, County, Remove; structured location features are already available.",
+            "`LivingArea`": "`LivingArea`, Decimal, 0.055943, Total livable area in the house, Keep; physical feature likely to predict price; units require standardization.",
+            "`PurchaseContractDate`": "`PurchaseContractDate`, DateTime, 0.003996, date offer is accepted and listing is no longer on market, Remove; used only to calculate `DaysOnMarket`, which is already available",
+            "`PropertySubType`": "`PropertySubType`, String, 0.000000, subtypes to the PropertyType variable, Remove; constant after filtering on `PropertySubType = SingleFamilyResidence`.",
+            "`ListingKeyNumeric`": "`ListingKeyNumeric`, Integral, 0.000000, Remove; redundant because `ListingKey` is the primary key.",
+            "`PropertyType`": "`PropertyType`, String, 0.000000, the type of property, Remove; constant after filtering on `PropertyType = Residential`.",
+            "`StateOrProvince`": "`StateOrProvince`, String, 0.000000, state the listing is in, Remove; constant after filtering on `StateOrProvince = CA`.",
+            "`ListingContractDate`": "`ListingContractDate`, DateTime, 0.000000, date the listing agreement was signed between the seller and the listing agent i.e., the date the house is put on the market, Remove; redundant with `DaysOnMarket`",
+            "`ListingId`": "`ListingId`, String, 0.000000, Remove; unique key for a specific listing, but `ListingKey` is already the primary key.",
+            "`Latfilled`": "`Latfilled`, Boolean, 0.000000, Remove; redundant latitude-completeness flag.",
+            "`Lonfilled`": "`Lonfilled`, Boolean, 0.000000, Remove; redundant longitude-completeness flag.",
+        },
+    )
+    _set_markdown(
+        cells[20],
+        """`Maybe Keep` identifies potentially useful fields whose missingness or inconsistency complicates modeling. They are excluded from the current feature set and can be reconsidered if later experiments justify the additional processing.""",
+    )
+    _set_markdown(
+        cells[25],
+        """`AssociationFee` is nearly 30% missing, so extensive imputation could distort its distribution.""",
+    )
+    _set_markdown(
+        cells[27],
+        """`Flooring`, `AssociationFee`, and `Levels` are excluded from the current feature set.""",
+    )
+    _set_markdown(
+        cells[30],
+        """### Approaches for Missing Value Handling
+
+Features with complete or near-complete missingness are removed.
+
+For features below roughly 10% missingness, mean, median, or mode imputation can alter relationships and reduce variance. Missing entries are instead filled with fixed-seed random draws from observed training values, preserving the empirical center and spread.
+
+Held-out values are sampled only from training observations to prevent leakage.""",
+    )
+    _set_markdown(
+        cells[37],
+        """### Duplicates
+
+Duplicate listing keys are resolved by retaining the record with the most recent closing date.""",
+    )
+    _set_markdown(
+        cells[39],
+        """The same duplicate-removal rule is applied to `tst`, preventing repeated properties from distorting held-out metrics.""",
+    )
+    _set_markdown(
+        cells[41],
+        """After deduplication, `ListingKey` and `CloseDate` are removed because they are no longer needed.""",
+    )
+    _set_markdown(
+        cells[43],
+        """### Impossible Values
+
+Domain rules remove records with impossible bedrooms, bathrooms, living area, lot size, parking, construction year, price, or California coordinates. Zero-day listings remain valid because a residence can be listed and closed on the same day.
+
+Living area cannot exceed lot area, and garage capacity cannot exceed total parking. IQR filtering made the discrete parking fields deterministic, so a domain-informed upper bound of 30 spaces is used instead.""",
+    )
+    _set_markdown(
+        cells[58],
+        """`City` and `CountyOrParish` are excluded because their high cardinality would substantially expand the encoded feature space.
+
+`ContractStatusChangeDate` is also excluded because it does not add necessary model information.""",
+    )
 
     _set_source(
         cells[0],
@@ -225,11 +321,32 @@ def prepare_model(path: Path) -> Notebook:
         cells[0],
         """# California Home Price Modeling with XGBoost
 
-This notebook trains and evaluates two XGBoost regressors on a chronological 2025 split. The deployed list-unaware model predicts sale price without `ListPrice` or `OriginalListPrice`; it is the primary portfolio artifact because it can estimate properties that are not actively listed.
+This notebook trains and evaluates two XGBoost regressors on a chronological 2025 split. The deployed list-unaware model predicts sale price without `ListPrice` or `OriginalListPrice`, allowing estimates for properties that are not actively listed.
 
-The list-aware model is retained only as project context and a leakage-adjacent comparison. Raw MLS records are not included in the repository.
+The list-aware model serves as a benchmark for the predictive advantage of listing-price fields. Raw MLS records are not included in the repository.
 
 ## Libraries""",
+    )
+    _set_markdown(
+        cells[11],
+        """## Retain Only Relevant Features
+
+The deployed feature set contains:
+
+- `DaysOnMarket`
+- `Latitude`
+- `Longitude`
+- `BathroomsTotalInteger`
+- `LivingArea`
+- `FireplaceYN`
+- `YearBuilt`
+- `ParkingTotal`
+- `BedroomsTotal`
+- `PoolPrivateYN`
+- `LotSizeAcres`
+- `Stories`
+
+Several additional columns remain temporarily to support preprocessing and are removed before training.""",
     )
     _set_source(
         cells[1],
@@ -308,14 +425,14 @@ Two variants are trained. The list-aware comparison includes listing-price field
     _set_source(cells[29], "## Reproducibility boundary")
     _set_markdown(
         cells[30],
-        """Processed train and test records are not exported from the publication notebook. The source MLS data and listing-level derivatives remain outside the repository.""",
+        """Processed train and test records are not exported from this notebook. The source MLS data and listing-level derivatives remain outside the repository.""",
     )
     _set_source(cells[31], "## Target and feature encoding")
-    _set_source(cells[33], "## Context comparison: list-aware XGBoost")
+    _set_source(cells[33], "## Benchmark: list-aware XGBoost")
     _set_source(cells[36], "## Deployed model: list-unaware XGBoost")
     _set_source(
         cells[34],
-        """# Context comparison only: listing-price features are included.
+        """# Benchmark model: listing-price features are included.
 xgb_list = XGBRegressor(max_depth=7,
                         learning_rate=0.01,
                         n_estimators=1000,
@@ -426,7 +543,7 @@ print(price_band_table.to_string(index=False))""",
     )
     _set_source(
         cells[50],
-        """The list-unaware model is the deployed portfolio artifact. Reported performance is tied to the chronological September-October 2025 holdout shown above; application smoke tests verify software behavior, not predictive performance.""",
+        """The list-unaware model is deployed by the Streamlit application. Reported performance is tied to the chronological September-October 2025 holdout shown above; application smoke tests verify software behavior, not predictive performance.""",
     )
     _repair_encoding(notebook)
     return notebook
