@@ -2,6 +2,8 @@
 
 An end-to-end machine learning project that predicts sale prices for California single-family residences without using list price. The repository includes the exploratory analysis, preprocessing and model-building notebooks, a verified XGBoost artifact, focused tests, and a deployable Streamlit application.
 
+**Live application:** [xgb-cali-houseprices.streamlit.app](https://xgb-cali-houseprices.streamlit.app/)
+
 The primary model achieved **0.90 R²**, **11.19% MAPE**, and **7.75% MdAPE** on a later-time September-October 2025 holdout. The final training frame contained **78,162 records** and **12 property features**.
 
 ## Project scope
@@ -116,11 +118,11 @@ The repository is organized for Streamlit Community Cloud and requires no secret
 - Entrypoint: `app.py`
 - Python: `3.12`
 
-After the approved changes are committed and pushed, create an app in Streamlit Community Cloud, select the repository and `app.py`, choose Python 3.12 in Advanced settings, and deploy. Root `requirements.txt` contains all runtime dependencies, `.streamlit/config.toml` contains the visual theme, and the model artifacts are addressed relative to `app.py`.
+The application is deployed at [xgb-cali-houseprices.streamlit.app](https://xgb-cali-houseprices.streamlit.app/). Streamlit Community Cloud tracks `main` and rebuilds the existing application after approved pushes. Root `requirements.txt` contains all runtime dependencies, `.streamlit/config.toml` contains the visual theme, and model artifacts are addressed relative to `app.py`.
 
 The deployment uses XGBoost's CPU-only wheel because the application performs CPU inference. This keeps the cloud installation substantially smaller without changing the `xgboost` API or native model format.
 
-The current renovation does not include publishing the app or changing GitHub settings. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the verification checklist.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment coordinates and the verified acceptance checklist.
 
 ## Repository structure
 
