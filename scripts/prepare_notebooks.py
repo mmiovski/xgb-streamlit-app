@@ -35,6 +35,29 @@ def _set_markdown(cell: dict[str, Any], text: str) -> None:
     cell.pop("outputs", None)
 
 
+def _markdown_cell(text: str) -> dict[str, Any]:
+    return {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": _source_lines(text),
+    }
+
+
+def _code_cell(text: str) -> dict[str, Any]:
+    return {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": _source_lines(text),
+    }
+
+
+def _assign_cell_ids(notebook: Notebook, prefix: str) -> None:
+    for index, cell in enumerate(notebook.get("cells", ())):
+        cell["id"] = f"{prefix}-{index:03d}"
+
+
 def _load(path: Path, expected_cells: int) -> Notebook:
     notebook = json.loads(path.read_text(encoding="utf-8"))
     if len(notebook.get("cells", ())) != expected_cells:
@@ -141,7 +164,7 @@ Features with complete or near-complete missingness are removed.
 
 For features below roughly 10% missingness, mean, median, or mode imputation can alter relationships and reduce variance. Missing entries are instead filled with fixed-seed random draws from observed training values, preserving the empirical center and spread.
 
-Held-out values are sampled only from training observations to prevent leakage.""",
+Test-set values are sampled only from training observations to prevent preprocessing leakage.""",
     )
     _set_markdown(
         cells[37],
@@ -151,7 +174,7 @@ Duplicate listing keys are resolved by retaining the record with the most recent
     )
     _set_markdown(
         cells[39],
-        """The same duplicate-removal rule is applied to `tst`, preventing repeated properties from distorting held-out metrics.""",
+        """The same duplicate-removal rule is applied to `tst`, preventing repeated properties from distorting test metrics.""",
     )
     _set_markdown(
         cells[41],
@@ -176,7 +199,7 @@ Living area cannot exceed lot area, and garage capacity cannot exceed total park
         cells[0],
         """# California Housing Exploratory Analysis and Preprocessing
 
-This notebook documents the exploratory analysis and preprocessing used for a 2025 California single-family-home price project. January through August form the training period; September and October form a later-time held-out period.
+This notebook documents the exploratory analysis and preprocessing used for a 2025 California single-family-home price project. January through August form the training period; September and October form a later-time test period.
 
 Raw MLS records are not included in the public repository. Retained outputs contain aggregate summaries and visualizations only. The final model build is documented in `modeling.ipynb`.""",
     )
@@ -184,7 +207,7 @@ Raw MLS records are not included in the public repository. Retained outputs cont
         cells[3],
         """## Load, verify, and merge monthly data
 
-The chronological split keeps January through August 2025 in the training set and reserves September and October 2025 for held-out evaluation. All preprocessing decisions are learned from the training data and then applied to the held-out months.""",
+The chronological split keeps January through August 2025 in the training set and uses September and October 2025 for later-time testing. All preprocessing decisions are learned from the training data and then applied to the test months.""",
     )
     _set_source(
         cells[5],
@@ -198,14 +221,14 @@ df6 = pd.read_csv('CRMLSSold202508_filled-2.csv')  # August
 df7 = pd.read_csv('CRMLSSold202501_filled.csv')    # January
 df8 = pd.read_csv('CRMLSSold202502_filled.csv')    # February
 
-# September and October held-out months
+# September and October test months
 tst_sep = pd.read_csv('CRMLSSold202509.csv')
 tst_oct = pd.read_csv('CRMLSSold202510.csv')""",
     )
     _set_source(
         cells[7],
         """training_months = [df7, df8, df1, df2, df3, df4, df5, df6]
-held_out_months = [tst_sep, tst_oct]
+test_months = [tst_sep, tst_oct]
 
 training_columns = [list(frame.columns) for frame in training_months]
 all_equal = all(training_columns[0] == columns for columns in training_columns[1:])
@@ -217,7 +240,7 @@ if not all_equal:
     )
     _set_source(
         cells[8],
-        """`training_months` and `held_out_months` keep the chronological roles explicit. They are processed with the same feature logic, but the groups are never mixed.""",
+        """`training_months` and `test_months` keep the chronological roles explicit. They are processed with the same feature logic, but the groups are never mixed.""",
     )
     _set_source(
         cells[9],
@@ -226,19 +249,19 @@ if not all_equal:
     _set_source(
         cells[10],
         """trn = pd.concat(training_months, ignore_index=True)
-tst = pd.concat(held_out_months, ignore_index=True)
+tst = pd.concat(test_months, ignore_index=True)
 
 print('Training data')
 trn.info()
 print()
-print('Held-out data')
+print('Test data')
 tst.info()""",
     )
     _set_markdown(
         cells[46],
         """### Percentile trimming
 
-The final pipeline does not use the earlier IQR experiment. For selected numeric fields, it learns the 0.5th and 99.5th percentile bounds from training data only, retaining the middle 99% of each feature. The same fixed bounds are then applied to the held-out data.""",
+The final pipeline does not use the earlier IQR experiment. For selected numeric fields, it learns the 0.5th and 99.5th percentile bounds from training data only, retaining the middle 99% of each feature. The same fixed bounds are then applied to the test data.""",
     )
     _set_markdown(
         cells[47],
@@ -266,7 +289,7 @@ for col in num_cols:
     pct_bounds[col] = (lower, upper)
     trn = trn[(trn[col] >= lower) & (trn[col] <= upper)]
 
-# Apply the fixed training thresholds to held-out data.
+# Apply the fixed training thresholds to test data.
 for col, (lower, upper) in pct_bounds.items():
     tst = tst[(tst[col] >= lower) & (tst[col] <= upper)]""",
     )
@@ -310,6 +333,7 @@ plt.show()""",
         """Raw and processed MLS records are intentionally not exported or included in this repository. The executed outputs preserve aggregate evidence while protecting listing-level data.""",
     )
     _repair_encoding(notebook)
+    _assign_cell_ids(notebook, "eda")
     return notebook
 
 
@@ -364,7 +388,7 @@ print(f'XGBoost device: {XGB_DEVICE}')""",
         cells[2],
         """## Load monthly data
 
-January through August 2025 form the training period. September and October 2025 are reserved as a later-time held-out test set.""",
+January through August 2025 form the training period. September and October 2025 form a later-time test set.""",
     )
     _set_source(
         cells[3],
@@ -378,7 +402,7 @@ df6 = pd.read_csv('CRMLSSold202508_filled-2.csv')  # August
 df7 = pd.read_csv('CRMLSSold202501_filled.csv')    # January
 df8 = pd.read_csv('CRMLSSold202502_filled.csv')    # February
 
-# September and October held-out months
+# September and October test months
 tst = pd.read_csv('CRMLSSold202509.csv')
 tst2 = pd.read_csv('CRMLSSold202510.csv')""",
     )
@@ -386,11 +410,11 @@ tst2 = pd.read_csv('CRMLSSold202510.csv')""",
         cells[24],
         """### Outlier treatment
 
-Selected numeric fields are trimmed using the 0.5th and 99.5th percentile bounds learned from training data only. The same fixed bounds are applied to the held-out months.""",
+Selected numeric fields are trimmed using the 0.5th and 99.5th percentile bounds learned from training data only. The same fixed bounds are applied to the test months.""",
     )
     _set_markdown(
         cells[25],
-        """The final model does not use the earlier IQR experiment. Percentile trimming preserves the middle 99% of each selected training feature and avoids learning thresholds from held-out data.""",
+        """The final model does not use the earlier IQR experiment. Percentile trimming preserves the middle 99% of each selected training feature and avoids learning thresholds from test data.""",
     )
     _set_source(
         cells[26],
@@ -412,7 +436,7 @@ for col in num_cols:
     pct_bounds[col] = (lower, upper)
     trn = trn[(trn[col] >= lower) & (trn[col] <= upper)]
 
-# Apply the fixed training thresholds to held-out data.
+# Apply the fixed training thresholds to test data.
 for col, (lower, upper) in pct_bounds.items():
     tst = tst[(tst[col] >= lower) & (tst[col] <= upper)]""",
     )
@@ -429,7 +453,14 @@ Two variants are trained. The list-aware comparison includes listing-price field
     )
     _set_source(cells[31], "## Target and feature encoding")
     _set_source(cells[33], "## Benchmark: list-aware XGBoost")
-    _set_source(cells[36], "## Deployed model: list-unaware XGBoost")
+    _set_source(
+        cells[36],
+        """## Hyperparameter selection
+
+The deployed settings came from a two-stage exhaustive five-fold search on a predecessor list-unaware feature frame and were retained after the runtime contract was reduced to the 12 inputs below. `xgboost_tuning.ipynb` contains the grids, archived selections, and reproducibility boundary.
+
+## Deployed model: list-unaware XGBoost""",
+    )
     _set_source(
         cells[34],
         """# Benchmark model: listing-price features are included.
@@ -543,9 +574,256 @@ print(price_band_table.to_string(index=False))""",
     )
     _set_source(
         cells[50],
-        """The list-unaware model is deployed by the Streamlit application. Reported performance is tied to the chronological September-October 2025 holdout shown above; application smoke tests verify software behavior, not predictive performance.""",
+        """The list-unaware model is deployed by the Streamlit application. Reported performance is tied to the chronological September-October 2025 test period shown above. September appeared in predecessor tuning diagnostics before October became available, so the combined period is not a strictly untouched evaluation set. Application smoke tests verify software behavior, not predictive performance.""",
     )
     _repair_encoding(notebook)
+    _assign_cell_ids(notebook, "modeling")
+    return notebook
+
+
+def build_tuning_notebook() -> Notebook:
+    """Build the focused XGBoost tuning and selection record."""
+
+    cells = [
+        _markdown_cell(
+            """# XGBoost Hyperparameter Tuning
+
+This notebook extracts the XGBoost search that produced the configuration retained by the deployed California home-price model. It excludes unfinished deployment cells and alternative-model experiments from the source notebooks.
+
+The archived searches ran on an earlier 18-feature list-unaware frame. The final application uses a reduced 12-feature contract, so the archived selections are model-development evidence rather than a claim that the complete search was rerun after feature reduction. The selected configuration is re-fitted and evaluated on the final processed frames below."""
+        ),
+        _code_cell(
+            """import os
+from math import prod
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import make_scorer, mean_absolute_percentage_error, r2_score
+from sklearn.model_selection import GridSearchCV
+from xgboost import XGBRegressor
+
+FEATURES = [
+    'DaysOnMarket',
+    'Latitude',
+    'Longitude',
+    'BathroomsTotalInteger',
+    'LivingArea',
+    'FireplaceYN',
+    'YearBuilt',
+    'ParkingTotal',
+    'BedroomsTotal',
+    'PoolPrivateYN',
+    'LotSizeAcres',
+    'Stories',
+]
+
+XGB_DEVICE = os.environ.get('XGB_DEVICE', 'cpu')
+RUN_FULL_TUNING = os.environ.get('RUN_FULL_TUNING', '0') == '1'
+SEARCH_JOBS = 1 if XGB_DEVICE == 'cuda' else -1
+
+print(f'XGBoost device: {XGB_DEVICE}')
+print(f'Full tuning enabled: {RUN_FULL_TUNING}')"""
+        ),
+        _markdown_cell(
+            """## Final processed data contract
+
+`trn.csv` contains the January-August training frame and `tst.csv` contains the September-October temporal test frame. These processed listing-level files are excluded from the repository. Only the 12 deployed features and the sale-price target are used below; listing-price fields remain available solely for the separate benchmark in `modeling.ipynb`."""
+        ),
+        _code_cell(
+            """trn = pd.read_csv('trn.csv')
+tst = pd.read_csv('tst.csv')
+
+required_columns = FEATURES + ['ClosePrice', 'OriginalListPrice', 'ListPrice']
+for name, frame in [('training', trn), ('test', tst)]:
+    missing = sorted(set(required_columns) - set(frame.columns))
+    if missing:
+        raise ValueError(f'{name} frame is missing required columns: {missing}')
+    if frame[FEATURES + ['ClosePrice']].isna().any().any():
+        raise ValueError(f'{name} frame contains missing model values')
+    if (frame['ClosePrice'] <= 0).any():
+        raise ValueError(f'{name} frame contains non-positive sale prices')
+
+for frame in (trn, tst):
+    frame[['FireplaceYN', 'PoolPrivateYN']] = frame[
+        ['FireplaceYN', 'PoolPrivateYN']
+    ].astype(int)
+
+X_trn = trn[FEATURES].copy()
+X_tst = tst[FEATURES].copy()
+y_trn = trn['ClosePrice'].to_numpy(dtype=float)
+y_tst = tst['ClosePrice'].to_numpy(dtype=float)
+y_trn_log = np.log(y_trn)
+
+print(f'Training shape: {X_trn.shape}')
+print(f'Test shape: {X_tst.shape}')
+print(f'Feature order: {list(X_trn.columns)}')"""
+        ),
+        _markdown_cell(
+            """## Search objectives
+
+The source tuning code compared mean and median absolute percentage error on the natural-log target used for training. These are selection criteria in log space, not dollar-space MAPE and MdAPE. Dollar-space metrics are calculated only after applying the exponential inverse transform.
+
+The cleaned code retains the archived objectives so the documented parameter selections remain interpretable."""
+        ),
+        _code_cell(
+            """def median_log_target_ape(y_true_log, y_pred_log):
+    y_true_log = np.asarray(y_true_log, dtype=float)
+    y_pred_log = np.asarray(y_pred_log, dtype=float)
+    return float(np.median(np.abs((y_true_log - y_pred_log) / y_true_log)))
+
+
+mean_log_ape_scorer = make_scorer(
+    mean_absolute_percentage_error,
+    greater_is_better=False,
+)
+median_log_ape_scorer = make_scorer(
+    median_log_target_ape,
+    greater_is_better=False,
+)"""
+        ),
+        _markdown_cell(
+            """## Stage 1: broad search
+
+The broad grid varies tree depth, learning rate, and estimator count while holding row and column sampling at 0.8. It contains 125 candidate combinations and requires 625 fits per scoring criterion with five-fold cross-validation."""
+        ),
+        _code_cell(
+            """broad_grid = {
+    'max_depth': [3, 5, 7, 9, 11],
+    'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3],
+    'n_estimators': [100, 300, 500, 800, 1000],
+}
+
+assert prod(len(values) for values in broad_grid.values()) == 125"""
+        ),
+        _markdown_cell(
+            """## Stage 2: refined search
+
+The refined grid concentrates on the plateau identified by the broad searches. It contains 48 combinations and requires 240 fits per scoring criterion."""
+        ),
+        _code_cell(
+            """refined_grid = {
+    'max_depth': [7, 9, 11, 13],
+    'learning_rate': [0.01, 0.05, 0.10],
+    'n_estimators': [1000, 1100, 1200, 1300],
+}
+
+assert prod(len(values) for values in refined_grid.values()) == 48"""
+        ),
+        _markdown_cell(
+            """## Archived search selections
+
+The source notebooks retain the following completed `GridSearchCV` outputs:
+
+| Stage | Selection criterion | Depth | Learning rate | Estimators |
+| --- | --- | ---: | ---: | ---: |
+| Broad | Mean log-target percentage error | 7 | 0.05 | 1,000 |
+| Broad | Median log-target percentage error | 11 | 0.01 | 1,000 |
+| Refined | Mean log-target percentage error | 7 | 0.05 | 1,300 |
+| Refined | Median log-target percentage error | 11 | 0.01 | 1,300 |
+
+The refined mean-error result is the configuration retained by the deployed model. Because the archived searches used the earlier expanded feature frame, this table is kept separate from the final 12-feature temporal test metrics."""
+        ),
+        _markdown_cell(
+            """## Optional exhaustive execution
+
+The four searches total 1,730 model fits. They are disabled during normal notebook execution so routine verification does not repeat a long model-selection run. Set `RUN_FULL_TUNING=1` before starting the kernel to execute them. On a CUDA system, set `XGB_DEVICE=cuda`; search-level parallelism is then limited to one job to avoid competing GPU fits."""
+        ),
+        _code_cell(
+            """def make_search(param_grid, scorer):
+    estimator = XGBRegressor(
+        objective='reg:squarederror',
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=1,
+        device=XGB_DEVICE,
+    )
+    return GridSearchCV(
+        estimator=estimator,
+        param_grid=param_grid,
+        scoring=scorer,
+        cv=5,
+        n_jobs=SEARCH_JOBS,
+        verbose=2,
+    )
+
+
+search_plan = {
+    'broad_mean_log_ape': (broad_grid, mean_log_ape_scorer),
+    'broad_median_log_ape': (broad_grid, median_log_ape_scorer),
+    'refined_mean_log_ape': (refined_grid, mean_log_ape_scorer),
+    'refined_median_log_ape': (refined_grid, median_log_ape_scorer),
+}
+
+search_results = {}
+if RUN_FULL_TUNING:
+    for name, (grid, scorer) in search_plan.items():
+        search = make_search(grid, scorer)
+        search.fit(X_trn, y_trn_log)
+        search_results[name] = {
+            'best_params': search.best_params_,
+            'best_score': -float(search.best_score_),
+        }
+    print(pd.DataFrame(search_results).T.to_string())
+else:
+    print('Full 1,730-fit search skipped. Set RUN_FULL_TUNING=1 to execute it.')"""
+        ),
+        _markdown_cell(
+            """## Selected configuration on the final feature contract
+
+This bounded step re-fits only the selected configuration on the final 12-feature training frame and reports dollar-space performance on the September-October temporal test frame. It verifies code compatibility without repeating model selection."""
+        ),
+        _code_cell(
+            """selected_params = {
+    'objective': 'reg:squarederror',
+    'max_depth': 7,
+    'learning_rate': 0.05,
+    'n_estimators': 1300,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'random_state': 42,
+    'n_jobs': -1,
+    'device': XGB_DEVICE,
+}
+
+selected_model = XGBRegressor(**selected_params)
+selected_model.fit(X_trn, y_trn_log)
+y_pred = np.exp(selected_model.predict(X_tst))
+
+evaluation = pd.DataFrame(
+    {
+        'Metric': ['R²', 'MAPE', 'MdAPE'],
+        'Temporal-test result': [
+            r2_score(y_tst, y_pred),
+            mean_absolute_percentage_error(y_tst, y_pred) * 100,
+            np.median(np.abs((y_tst - y_pred) / y_tst)) * 100,
+        ],
+    }
+)
+evaluation['Temporal-test result'] = evaluation['Temporal-test result'].round(2)
+evaluation"""
+        ),
+        _markdown_cell(
+            """## Interpretation boundary
+
+The selected-configuration result above validates the final feature order, training call, inverse transform, and aggregate metric calculations. It does not represent a new exhaustive search. The deployed UBJSON artifact remains the authoritative runtime model and is independently protected by checksum, feature-order, and deterministic-prediction tests."""
+        ),
+    ]
+
+    notebook = {
+        "cells": cells,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {"name": "python", "version": "3.12"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    _assign_cell_ids(notebook, "xgb-tuning")
     return notebook
 
 
@@ -559,6 +837,7 @@ def main() -> None:
     output_dir = args.output_dir.resolve()
     _write(prepare_eda(args.eda_source.resolve()), output_dir / "eda.ipynb")
     _write(prepare_model(args.model_source.resolve()), output_dir / "modeling.ipynb")
+    _write(build_tuning_notebook(), output_dir / "xgboost_tuning.ipynb")
     print(f"notebooks_written={output_dir}")
 
 

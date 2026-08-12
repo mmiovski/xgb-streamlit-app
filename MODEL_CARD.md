@@ -24,15 +24,21 @@ The model is served as a native XGBoost UBJSON artifact. The application predict
 
 - Population: recorded California residential single-family sales
 - Training period: January-August 2025
-- Held-out period: September-October 2025
+- Temporal test period: September-October 2025
 - Final training rows: 78,162
 - Raw data availability: proprietary MLS records are excluded
 
-The chronological split provides a more realistic later-time test than a random row split. Preprocessing thresholds are learned from training data only and then applied to the held-out months.
+The chronological split provides a more realistic later-time test than a random row split. Preprocessing thresholds are learned from training data only and then applied to the test months. September appeared in predecessor tuning diagnostics before October became available, so the combined period is not described as a strictly untouched evaluation set.
+
+## Hyperparameter selection
+
+Archived XGBoost experiments used exhaustive five-fold grid searches in two stages. The broad grid evaluated 125 depth, learning-rate, and estimator-count combinations; the refined grid evaluated 48. Each grid was run against mean and median percentage-error criteria on the natural-log target, for 1,730 total cross-validation fits.
+
+The refined mean-error search selected `max_depth=7`, `learning_rate=0.05`, and `n_estimators=1300`, with `subsample=0.8` and `colsample_bytree=0.8` fixed throughout. The archived search used an earlier 18-feature list-unaware frame. The final model retained the selected settings after reducing the runtime contract to 12 features. A full retune on the reduced feature set has not been claimed. The extracted code and archived selections are documented in [`notebooks/xgboost_tuning.ipynb`](notebooks/xgboost_tuning.ipynb).
 
 ## Performance
 
-| Metric | Held-out result |
+| Metric | Temporal-test result |
 | --- | ---: |
 | R² | 0.90 |
 | MAPE | 11.19% |

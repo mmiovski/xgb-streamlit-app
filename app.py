@@ -103,9 +103,9 @@ def render_performance_grid(metadata: dict) -> None:
     st.markdown(
         metric_grid(
             [
-                (f'{metrics["r2"]:.2f}', "Held-out R²"),
-                (f'{metrics["mape_percent"]:.2f}%', "Held-out MAPE"),
-                (f'{metrics["mdape_percent"]:.2f}%', "Held-out MdAPE"),
+                (f'{metrics["r2"]:.2f}', "Temporal-test R²"),
+                (f'{metrics["mape_percent"]:.2f}%', "Temporal-test MAPE"),
+                (f'{metrics["mdape_percent"]:.2f}%', "Temporal-test MdAPE"),
             ]
         ),
         unsafe_allow_html=True,
@@ -311,9 +311,10 @@ def render_methodology_page(bundle) -> None:
         <div class="pipeline">
           <div class="pipeline-step"><span class="pipeline-number">01</span><span class="pipeline-title">Monthly California sales records</span></div>
           <div class="pipeline-step"><span class="pipeline-number">02</span><span class="pipeline-title">Filtering, imputation, and outlier treatment</span></div>
-          <div class="pipeline-step"><span class="pipeline-number">03</span><span class="pipeline-title">List-unaware XGBoost training</span></div>
-          <div class="pipeline-step"><span class="pipeline-number">04</span><span class="pipeline-title">September-October holdout evaluation</span></div>
-          <div class="pipeline-step"><span class="pipeline-number">05</span><span class="pipeline-title">Validated Streamlit inference</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">03</span><span class="pipeline-title">Cross-validated XGBoost selection</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">04</span><span class="pipeline-title">Final list-unaware model training</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">05</span><span class="pipeline-title">September-October temporal test</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">06</span><span class="pipeline-title">Validated Streamlit inference</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -330,9 +331,17 @@ def render_methodology_page(bundle) -> None:
         st.metric("Final training records", f'{metadata["training"]["final_rows"]:,}')
         st.caption("California single-family residences after documented preprocessing.")
 
+    st.subheader("Hyperparameter selection")
+    st.write(
+        "A two-stage five-fold grid search varied tree depth, learning rate, and estimator count for the list-unaware XGBoost model. It selected depth 7, a 0.05 learning rate, and 1,300 trees. Those settings were retained when the runtime contract was reduced from the earlier expanded feature frame to the final 12 inputs."
+    )
+    st.markdown(
+        "See [`notebooks/xgboost_tuning.ipynb`](https://github.com/mmiovski/xgb-streamlit-app/blob/main/notebooks/xgboost_tuning.ipynb) for the grids, archived selections, and reproducibility boundary."
+    )
+
     section_heading(
         "Error by price band",
-        "The aggregate metrics appear on the Estimate page. This table shows error variation across sale-price bands from the same held-out months.",
+        "The aggregate metrics appear on the Estimate page. This table shows error variation across sale-price bands from the same temporal test records.",
     )
     price_bands = pd.DataFrame(metadata["evaluation"]["price_bands"])
     price_bands.columns = ["Price band", "MAPE (%)", "MdAPE (%)"]

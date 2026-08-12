@@ -4,7 +4,7 @@ An end-to-end machine learning project that predicts sale prices for California 
 
 **Live application:** [xgb-cali-houseprices.streamlit.app](https://xgb-cali-houseprices.streamlit.app/)
 
-The primary model achieved **0.90 R²**, **11.19% MAPE**, and **7.75% MdAPE** on a later-time September-October 2025 holdout. The final training frame contained **78,162 records** and **12 property features**.
+The primary model achieved **0.90 R²**, **11.19% MAPE**, and **7.75% MdAPE** on a later-time September-October 2025 test set. The final training frame contained **78,162 records** and **12 property features**.
 
 ## Project scope
 
@@ -20,34 +20,37 @@ A list-aware benchmark in the modeling notebook quantifies the predictive advant
 
 ## Results
 
-| Model | Held-out R² | MAPE | MdAPE | Role |
+| Model | Temporal-test R² | MAPE | MdAPE | Role |
 | --- | ---: | ---: | ---: | --- |
 | List-unaware XGBoost | 0.90 | 11.19% | 7.75% | Primary deployed model |
 | List-aware XGBoost | 0.99 | 3.30% | 2.10% | Listing-price benchmark |
 
-Training uses January through August 2025. September and October 2025 are held out as a later-time evaluation period. The metrics above were reproduced by the executed modeling notebook on CPU using the pinned environment. Software tests verify application behavior and do not constitute a second performance evaluation.
+Training uses January through August 2025, with September and October used for later-time testing. September had already appeared in predecessor tuning diagnostics before October became available, so the combined results are temporal test metrics rather than a strictly untouched evaluation set. The metrics above were reproduced by the executed modeling notebook on CPU using the pinned environment. Software tests verify application behavior and do not constitute a second performance evaluation.
 
 The list-unaware model's error varies across price segments:
 
-| Held-out sale-price band | MAPE | MdAPE |
+| Temporal-test sale-price band | MAPE | MdAPE |
 | --- | ---: | ---: |
 | Below $500K | 12.96% | 7.40% |
 | $500K to $1M | 9.64% | 6.54% |
 | $1M to $2M | 11.85% | 9.07% |
 | $2M to $5M | 13.89% | 11.52% |
 
-These band results come from the executed modeling notebook. No held-out homes remained above $5 million after the documented training-derived filters.
+These band results come from the executed modeling notebook. No test-set homes remained above $5 million after the documented training-derived filters.
 
 ## Modeling pipeline
 
 1. Load January through October 2025 monthly sales records.
-2. Use January-August for training and September-October for held-out evaluation.
+2. Use January-August for training and September-October for later-time testing.
 3. Filter to California single-family sales, resolve duplicate listings, and apply property-value checks.
-4. Impute from observed training values and learn percentile bounds without using held-out data.
-5. Train list-aware and list-unaware XGBoost regressors on `ln(ClosePrice)`, then evaluate dollar predictions after applying `exp`.
-6. Package the list-unaware booster in native XGBoost UBJSON format for inference.
+4. Impute from observed training values and learn percentile bounds without using test data.
+5. Use two-stage exhaustive five-fold searches to narrow XGBoost depth, learning rate, and estimator count.
+6. Train list-aware and list-unaware XGBoost regressors on `ln(ClosePrice)`, then evaluate dollar predictions after applying `exp`.
+7. Package the list-unaware booster in native XGBoost UBJSON format for inference.
 
-The complete analysis is in [notebooks/eda.ipynb](notebooks/eda.ipynb) and [notebooks/modeling.ipynb](notebooks/modeling.ipynb). Both notebooks were executed from start to finish with zero retained errors.
+A two-stage exhaustive five-fold search selected the settings retained by the deployed model. It ran before the feature contract was reduced from 18 inputs to 12, so a complete retune on the final feature set is not claimed.
+
+[notebooks/eda.ipynb](notebooks/eda.ipynb) and [notebooks/modeling.ipynb](notebooks/modeling.ipynb) were executed from start to finish with zero retained errors. [notebooks/xgboost_tuning.ipynb](notebooks/xgboost_tuning.ipynb) contains the grids and archived selections, then performs one bounded re-fit on the final schema; the exhaustive search is opt-in.
 
 ## Model contract
 
@@ -109,7 +112,8 @@ The live application runs on Python 3.12 with no secrets or external services. S
 |   `-- styles.py                  Streamlit visual system
 |-- notebooks/
 |   |-- eda.ipynb                  Executed EDA and preprocessing
-|   `-- modeling.ipynb             Executed training and evaluation
+|   |-- modeling.ipynb             Executed training and evaluation
+|   `-- xgboost_tuning.ipynb       Extracted XGBoost search and selection record
 |-- scripts/                       Artifact and notebook verification tools
 |-- tests/                         Contract, artifact, inference, and app tests
 |-- MODEL_CARD.md                  Intended use and limitations
@@ -121,7 +125,7 @@ The live application runs on Python 3.12 with no secrets or external services. S
 
 The proprietary MLS records are not included because they contain addresses, agent details, brokerage information, listing identifiers, and other non-public fields. Notebook outputs retain aggregate evidence only. The model and SHAP background contain feature values but no targets, names, emails, addresses, or listing identifiers.
 
-The notebooks expect the original ten monthly filenames when rerun. The application and software tests run without those records; reproducing the performance metrics requires access to the excluded monthly source files.
+The EDA and modeling notebooks expect the original ten monthly filenames when rerun. The tuning notebook expects the processed `trn.csv` and `tst.csv` frames with the documented 12-feature contract. The application and software tests run without those records; reproducing the model-development results requires access to the excluded source data.
 
 ## Reproducibility
 
@@ -136,7 +140,7 @@ The deployed booster uses XGBoost's native UBJSON format instead of pickle. Conv
 
 ## Future work
 
-Future development should prioritize periodic retraining with later-period data, followed by temporal drift and calibration checks. A validated prediction interval would also improve uncertainty communication.
+Future development should prioritize a fresh end-to-end retune on the final 12-feature contract, using a validation design that leaves the final temporal test period untouched. Periodic retraining, drift checks, and a validated prediction interval would then improve maintenance and uncertainty communication.
 
 ## License
 

@@ -14,7 +14,6 @@ CREAM = "#F7F2EA"
 CHARCOAL = "#263438"
 CORAL = "#D45B55"
 MUTED = "#6B7476"
-GOLD = "#D6A55C"
 
 DISPLAY_NAMES: dict[str, str] = {
     "DaysOnMarket": "Days on market",
@@ -64,7 +63,7 @@ def shap_summary_figure(frame: pd.DataFrame) -> Figure:
     labels = [DISPLAY_NAMES.get(name, name) for name in data["Feature"]]
     values = data["Mean absolute SHAP"].to_numpy(dtype=float)
     fig, axis = plt.subplots(figsize=(8, 4.6))
-    axis.barh(labels, values, color=GOLD, height=0.62)
+    axis.barh(labels, values, color=CORAL, height=0.62)
     return _finish_figure(
         fig,
         axis,

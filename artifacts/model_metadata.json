@@ -30,7 +30,9 @@
   },
   "evaluation": {
     "period": "September through October 2025",
-    "held_out": true,
+    "role": "Later-time temporal test",
+    "strictly_untouched": false,
+    "selection_history": "September appeared in predecessor tuning diagnostics before October became available.",
     "metrics": {
       "r2": 0.9,
       "mape_percent": 11.19,
@@ -97,6 +99,29 @@
     "random_state": 42,
     "n_jobs": -1
   },
+  "tuning": {
+    "source_notebook": "MM.xgb.no.listprice.ipynb",
+    "cleaned_notebook": "notebooks/xgboost_tuning.ipynb",
+    "method": "Two-stage exhaustive five-fold GridSearchCV",
+    "selection_target": "Natural-log ClosePrice",
+    "criteria": [
+      "Mean absolute percentage error on the log target",
+      "Median absolute percentage error on the log target"
+    ],
+    "candidate_counts": {
+      "broad_per_criterion": 125,
+      "refined_per_criterion": 48,
+      "cross_validation_fits_total": 1730
+    },
+    "varied_parameters": [
+      "max_depth",
+      "learning_rate",
+      "n_estimators"
+    ],
+    "source_feature_count": 18,
+    "final_feature_count": 12,
+    "provenance_note": "The archived search ran on a predecessor expanded feature frame. Its selected configuration was retained for the final 12-feature model; a complete retune on the reduced contract is not claimed."
+  },
   "explanations": {
     "background_file": "shap_background.csv",
     "rows": 300,
@@ -106,6 +131,7 @@
   "evidence": {
     "modeling_notebook": "notebooks/modeling.ipynb",
     "eda_notebook": "notebooks/eda.ipynb",
+    "tuning_notebook": "notebooks/xgboost_tuning.ipynb",
     "price_band_source": "CPU modeling-notebook rerun with the documented fixed configuration"
   }
 }

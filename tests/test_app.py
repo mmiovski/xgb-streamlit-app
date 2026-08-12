@@ -33,3 +33,4 @@ def test_methodology_page_loads_without_calculating_shap() -> None:
     assert not app.exception
     assert "Calculate SHAP summaries" in [button.label for button in app.button]
     assert "Final training records" in [metric.label for metric in app.metric]
+    assert "Hyperparameter selection" in [heading.value for heading in app.subheader]
