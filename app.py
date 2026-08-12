@@ -1,362 +1,450 @@
-import streamlit as st
-import numpy as np
-import pandas as pd
-import joblib
-import shap
+"""Streamlit interface for the California home price XGBoost model."""
+
+from __future__ import annotations
+
+from datetime import date
+import html
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import pandas as pd
+import streamlit as st
 
-# app configuration
+from housing_price.charts import (
+    DISPLAY_NAMES,
+    importance_figure,
+    local_contribution_figure,
+    shap_summary_figure,
+)
+from housing_price.contract import (
+    FEATURE_NAMES,
+    FEATURE_SPECS,
+    property_inputs_from_mapping,
+    validate_inputs,
+)
+from housing_price.explanations import (
+    gain_importance,
+    global_shap_values,
+    load_background,
+    local_shap_values,
+    mean_absolute_shap,
+)
+from housing_price.inference import (
+    ModelLoadError,
+    PredictionError,
+    build_feature_frame,
+    format_currency,
+    load_model_bundle,
+    predict_price,
+)
+from housing_price.styles import APP_CSS, hero, metric_grid
+
+
+BASE_DIR = Path(__file__).resolve().parent
+ARTIFACT_DIR = BASE_DIR / "artifacts"
+MODEL_PATH = ARTIFACT_DIR / "xgb_nolist.ubj"
+METADATA_PATH = ARTIFACT_DIR / "model_metadata.json"
+BACKGROUND_PATH = ARTIFACT_DIR / "shap_background.csv"
+
+
 st.set_page_config(
-    page_title="California Home Price Predictor",
-    layout="centered"
+    page_title="California Home Price Model",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
+st.markdown(APP_CSS, unsafe_allow_html=True)
 
-# title
-st.title("California Home Price Predictor")
 
-# load model
-@st.cache_resource
-def load_model():
-    return joblib.load("xgb.pkl")
+@st.cache_resource(show_spinner="Loading the verified model...")
+def get_model_bundle():
+    return load_model_bundle(MODEL_PATH, METADATA_PATH)
 
-model = load_model()
 
-@st.cache_data
-def load_shap_background():
-    return pd.read_csv("shap_background.csv")
+@st.cache_data(show_spinner=False)
+def get_background() -> pd.DataFrame:
+    return load_background(BACKGROUND_PATH)
 
-@st.cache_resource
-def load_shap_explainer():
-    return shap.TreeExplainer(model)
 
-explainer = load_shap_explainer()
+@st.cache_data(show_spinner="Calculating SHAP summaries...")
+def get_global_shap_summary() -> pd.DataFrame:
+    background = get_background()
+    values = global_shap_values(get_model_bundle(), background)
+    return mean_absolute_shap(background, values)
 
-@st.cache_data
-def compute_global_shap(background):
-    return explainer.shap_values(background)
 
-# feature order (MUST MATCH TRAINING)
-FEATURES = [
-    "DaysOnMarket",
-    "Latitude",
-    "Longitude",
-    "BathroomsTotalInteger",
-    "LivingArea",
-    "FireplaceYN",
-    "YearBuilt",
-    "ParkingTotal",
-    "BedroomsTotal",
-    "PoolPrivateYN",
-    "LotSizeAcres",
-    "Stories"
-]
+def section_heading(title: str, copy: str) -> None:
+    st.markdown(
+        f'<h2 class="section-heading">{html.escape(title)}</h2>'
+        f'<p class="section-copy">{html.escape(copy)}</p>',
+        unsafe_allow_html=True,
+    )
 
-# ----------------------------
-# Sidebar routing
-# ----------------------------
-st.sidebar.header("Navigation")
-page = st.sidebar.radio(
-    "Go to",
-    ["Inference", "Model Information"]
-)
 
-# ============================================================
-# PAGE: Inference
-# ============================================================
-if page == "Inference":
-    st.subheader("Property Information")
+def render_sidebar() -> str:
+    st.sidebar.markdown(
+        """
+        <div class="sidebar-brand">
+          <p class="sidebar-kicker">Portfolio project</p>
+          <p class="sidebar-title">California Home Price Model</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    page = st.sidebar.radio(
+        "Page",
+        ("Estimate", "Model and methodology"),
+        label_visibility="collapsed",
+    )
+    st.sidebar.markdown(
+        """
+        <div class="sidebar-note">
+          Built from 2025 California single-family-home sales. The deployed model does not use list price.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return page
 
-    # Location
-    with st.expander("Location", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            Latitude = st.number_input(
+
+def render_performance_grid(metadata: dict) -> None:
+    metrics = metadata["evaluation"]["metrics"]
+    st.markdown(
+        metric_grid(
+            [
+                (f'{metrics["r2"]:.2f}', "Held-out R²"),
+                (f'{metrics["mape_percent"]:.2f}%', "Held-out MAPE"),
+                (f'{metrics["mdape_percent"]:.2f}%', "Held-out MdAPE"),
+                ("Sep-Oct 2025", "Evaluation period"),
+            ]
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def render_estimate_page(bundle) -> None:
+    st.markdown(
+        hero(
+            "Estimate a California home sale price",
+            "Enter 12 property characteristics to generate a sale-price estimate. "
+            "The XGBoost model is list-unaware, so it can estimate homes without a listed price.",
+            "List-unaware XGBoost model",
+        ),
+        unsafe_allow_html=True,
+    )
+    render_performance_grid(bundle.metadata)
+    st.markdown(
+        """
+        <div class="notice">
+          This analytical estimate is for demonstration only. It is not an appraisal, offer, lending decision, or financial recommendation. Accuracy varies by property and price segment.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    section_heading(
+        "Property details",
+        "Use decimal-degree coordinates and MLS-style property values. Required ranges are enforced before inference.",
+    )
+    with st.form("prediction_form", clear_on_submit=False):
+        st.subheader("Location")
+        location_left, location_right = st.columns(2)
+        with location_left:
+            latitude = st.number_input(
                 "Latitude",
                 min_value=32.0,
                 max_value=42.0,
                 value=34.05,
-                help="Geographic latitude of the property. Restricted to California."
+                step=0.01,
+                format="%.4f",
+                help="California property latitude in decimal degrees.",
             )
-        with col2:
-            Longitude = st.number_input(
+        with location_right:
+            longitude = st.number_input(
                 "Longitude",
-                min_value=-125.0,
+                min_value=-124.5,
                 max_value=-114.0,
                 value=-118.25,
-                help="Geographic longitude of the property. Restricted to California."
+                step=0.01,
+                format="%.4f",
+                help="California property longitude in decimal degrees. Use a negative value.",
             )
 
-    # Home Details
-    with st.expander("Home Details", expanded=True):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            BedroomsTotal = st.number_input(
+        st.subheader("Home and lot")
+        home_one, home_two, home_three = st.columns(3)
+        with home_one:
+            living_area = st.number_input(
+                "Living area (sq ft)",
+                min_value=300,
+                max_value=10000,
+                value=1500,
+                step=50,
+                help="Finished interior living area.",
+            )
+            bedrooms = st.number_input(
                 "Bedrooms",
-                min_value=0,
+                min_value=1,
                 max_value=10,
-                step=1,
                 value=3,
-                help="Total number of bedrooms in the home."
+                step=1,
             )
-
-            BathroomsTotalInteger = st.number_input(
-                "Bathrooms",
-                min_value=0.0,
+        with home_two:
+            lot_size = st.number_input(
+                "Lot size (acres)",
+                min_value=0.01,
                 max_value=10.0,
-                step=0.5,
-                value=2.0,
-                help="Total number of bathrooms. Half-baths (e.g., 2.5) are allowed."
+                value=0.15,
+                step=0.01,
+                format="%.2f",
             )
-
-            Stories = st.number_input(
+            bathrooms = st.number_input(
+                "Bathrooms",
+                min_value=1,
+                max_value=10,
+                value=2,
+                step=1,
+                help="Whole bathroom count used by the MLS feature.",
+            )
+        with home_three:
+            year_built = st.number_input(
+                "Year built",
+                min_value=1800,
+                max_value=date.today().year,
+                value=1990,
+                step=1,
+            )
+            stories = st.number_input(
                 "Stories",
                 min_value=1,
                 max_value=5,
-                step=1,
                 value=1,
-                help="Number of floors in the home."
-            )
-
-        with col2:
-            LivingArea = st.number_input(
-                "Living Area (sqft)",
-                min_value=300,
-                max_value=10000,
-                step=50,
-                value=1500,
-                help="Finished interior living space measured in square feet."
-            )
-
-            LotSizeAcres = st.number_input(
-                "Lot Size (Acres)",
-                min_value=0.0,
-                max_value=10.0,
-                step=0.01,
-                value=0.15,
-                help="Total land area of the property measured in acres."
-            )
-
-            YearBuilt = st.number_input(
-                "Year Built",
-                min_value=1800,
-                max_value=2025,
                 step=1,
-                value=1990,
-                help="Year the home was originally constructed."
             )
 
-    # Amenities
-    with st.expander("Amenities", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            FireplaceYN = st.checkbox(
-                "Fireplace",
-                help="Indicates whether the home has at least one fireplace."
+        st.subheader("Listing and amenities")
+        detail_one, detail_two, detail_three = st.columns(3)
+        with detail_one:
+            days_on_market = st.number_input(
+                "Days on market",
+                min_value=0,
+                max_value=365,
+                value=30,
+                step=1,
             )
-        with col2:
-            PoolPrivateYN = st.checkbox(
-                "Private Pool",
-                help="Indicates whether the property includes a private swimming pool."
+        with detail_two:
+            parking = st.number_input(
+                "Parking spaces",
+                min_value=0.0,
+                max_value=30.0,
+                value=2.0,
+                step=0.5,
+                format="%.1f",
+                help="Total parking capacity reported in the listing.",
             )
+        with detail_three:
+            fireplace = st.toggle("Fireplace", value=False)
+            private_pool = st.toggle("Private pool", value=False)
 
-        ParkingTotal = st.number_input(
-            "Parking Spaces",
-            min_value=0,
-            max_value=10,
-            step=1,
-            value=2,
-            help="Total number of off-street parking spaces available."
+        submitted = st.form_submit_button("Estimate sale price", use_container_width=True)
+
+    if submitted:
+        st.session_state.pop("latest_inputs", None)
+        st.session_state.pop("latest_prediction", None)
+        raw_values = {
+            "DaysOnMarket": days_on_market,
+            "Latitude": latitude,
+            "Longitude": longitude,
+            "BathroomsTotalInteger": bathrooms,
+            "LivingArea": living_area,
+            "FireplaceYN": fireplace,
+            "YearBuilt": year_built,
+            "ParkingTotal": parking,
+            "BedroomsTotal": bedrooms,
+            "PoolPrivateYN": private_pool,
+            "LotSizeAcres": lot_size,
+            "Stories": stories,
+        }
+        validation = validate_inputs(raw_values)
+        if validation.errors:
+            for error in validation.errors:
+                st.error(error)
+        else:
+            for warning in validation.warnings:
+                st.warning(warning)
+            try:
+                inputs = property_inputs_from_mapping(raw_values)
+                prediction = predict_price(bundle, inputs)
+                st.session_state["latest_inputs"] = inputs
+                st.session_state["latest_prediction"] = prediction
+            except (ValueError, PredictionError) as exc:
+                st.error(str(exc))
+
+    prediction = st.session_state.get("latest_prediction")
+    inputs = st.session_state.get("latest_inputs")
+    if prediction is not None and inputs is not None:
+        st.markdown(
+            f"""
+            <div class="prediction-card">
+              <p class="prediction-label">Estimated sale price</p>
+              <p class="prediction-value">{format_currency(prediction.price)}</p>
+              <p class="prediction-caption">Generated from the submitted property details. Review the model page for methodology, held-out performance, and feature-level explanations.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+        with st.expander("Review submitted values"):
+            summary = pd.DataFrame(
+                {
+                    "Feature": [DISPLAY_NAMES[name] for name in FEATURE_NAMES],
+                    "Value": [inputs.as_dict()[name] for name in FEATURE_NAMES],
+                }
+            )
+            st.dataframe(summary, hide_index=True, use_container_width=True)
 
-    # Market
-    with st.expander("Market Information", expanded=True):
-        DaysOnMarket = st.number_input(
-            "Days on Market",
-            min_value=0,
-            max_value=365,
-            step=1,
-            value=30,
-            help="Number of days the property has been listed before sale."
+
+def render_methodology_page(bundle) -> None:
+    metadata = bundle.metadata
+    st.markdown(
+        hero(
+            "From monthly sales records to an interactive estimate",
+            "The project covers exploratory analysis, leakage-aware preprocessing, chronological evaluation, native model packaging, and Streamlit deployment.",
+            "Model and methodology",
+        ),
+        unsafe_allow_html=True,
+    )
+    render_performance_grid(metadata)
+
+    section_heading(
+        "Pipeline",
+        "The public notebooks document the analysis and model build. Proprietary MLS source records are intentionally excluded.",
+    )
+    st.markdown(
+        """
+        <div class="pipeline">
+          <div class="pipeline-step"><span class="pipeline-number">01</span><span class="pipeline-title">Monthly California sales records</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">02</span><span class="pipeline-title">Filtering, imputation, and outlier treatment</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">03</span><span class="pipeline-title">List-unaware XGBoost training</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">04</span><span class="pipeline-title">September-October holdout evaluation</span></div>
+          <div class="pipeline-step"><span class="pipeline-number">05</span><span class="pipeline-title">Validated Streamlit inference</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    left, right = st.columns([1.15, 0.85])
+    with left:
+        st.subheader("Evaluation design")
+        st.write(
+            "Training uses January through August 2025. September and October 2025 are held out as a later-time test set. The model predicts the natural logarithm of sale price, and the application converts the result back to US dollars with the exponential function."
         )
+        st.write(
+            "The deployed variant excludes ListPrice and OriginalListPrice. This broadens its use to properties without an active listing and avoids relying on a near-direct proxy for sale price."
+        )
+    with right:
+        st.subheader("Training frame")
+        st.metric("Final training records", f'{metadata["training"]["final_rows"]:,}')
+        st.caption("California single-family residences after documented preprocessing.")
 
-    # Assemble user inputs (STRICT MODEL ORDER)
-    input_data = pd.DataFrame(
-        [[
-            DaysOnMarket,
-            Latitude,
-            Longitude,
-            BathroomsTotalInteger,
-            LivingArea,
-            float(FireplaceYN),
-            YearBuilt,
-            ParkingTotal,
-            BedroomsTotal,
-            float(PoolPrivateYN),
-            LotSizeAcres,
-            Stories
-        ]],
-        columns=FEATURES
-    ).astype(float)
-
-    st.session_state["last_input"] = input_data
-
-    # Prediction
-    if st.button("Predict Price"):
-        log_price = model.predict(input_data)[0]
-        price = np.exp(log_price)
-
-        st.metric("Estimated Sale Price", f"${price:,.0f}")
-        st.caption("Note: This estimate is for demonstrational purposes only.")
-
-# ============================================================
-# PAGE: Model Information
-# ============================================================
-elif page == "Model Information":
-    st.subheader("Model Information")
-
-    st.markdown(
-        """
-        This application uses an **XGBoost regression model** trained on California MLS data.
-        The target variable is **log-transformed sale price**, which stabilizes variance and
-        improves predictive performance. Predictions shown in the app are converted back to
-        dollar terms for interpretability.
-        """
+    section_heading(
+        "Held-out performance",
+        "These metrics come from the modeling notebook's September-October evaluation. They are not results from the app's software smoke tests.",
     )
-
-    # ----------------------------
-    # Global Feature Importance
-    # ----------------------------
-    st.markdown("### Global Feature Importance")
-
-    importances = model.feature_importances_
-
-    fi_df = (
-        pd.DataFrame({
-            "Feature": FEATURES,
-            "Importance": importances
-        })
-        .sort_values("Importance", ascending=False)
-        .reset_index(drop=True)
-    )
-
-    st.dataframe(fi_df, use_container_width=True)
-
-    st.bar_chart(
-        fi_df.set_index("Feature")["Importance"]
-    )
-
+    price_bands = pd.DataFrame(metadata["evaluation"]["price_bands"])
+    price_bands.columns = ["Price band", "MAPE (%)", "MdAPE (%)"]
+    st.dataframe(price_bands, hide_index=True, use_container_width=True)
     st.caption(
-        "Feature importance reflects how much each feature contributes to reducing prediction "
-        "error across all trees in the model (higher = more influence)."
+        "R² measures explained variance. MAPE is mean absolute percentage error. MdAPE is median absolute percentage error. Performance varies across homes and price ranges."
     )
 
-    # ----------------------------
-    # SHAP: Global Explanation
-    # ----------------------------
-    st.markdown("### SHAP: Global Feature Impact")
+    section_heading(
+        "Model features",
+        "The application preserves the exact names and order embedded in the native model artifact.",
+    )
+    feature_table = pd.DataFrame(
+        [
+            {
+                "Feature": spec.label,
+                "Model column": spec.name,
+                "Unit": spec.unit,
+                "Type": spec.model_type,
+            }
+            for spec in FEATURE_SPECS
+        ]
+    )
+    st.dataframe(feature_table, hide_index=True, use_container_width=True)
 
+    section_heading(
+        "How the model uses features",
+        "Gain summarizes split improvement across the trained trees. It does not show direction and should not be interpreted causally.",
+    )
+    try:
+        gain = gain_importance(bundle)
+        figure = importance_figure(gain)
+        st.pyplot(figure, use_container_width=True)
+        plt.close(figure)
+    except Exception:
+        st.info("The stored model importance summary is temporarily unavailable.")
+
+    if st.button("Calculate SHAP summaries", use_container_width=False):
+        st.session_state["show_shap"] = True
+
+    if st.session_state.get("show_shap", False):
+        try:
+            summary = get_global_shap_summary()
+            figure = shap_summary_figure(summary)
+            st.pyplot(figure, use_container_width=True)
+            plt.close(figure)
+            st.markdown(
+                "<p class='small-source'>SHAP magnitudes use the stored 300-row feature-only explanation sample. The original sampling procedure was not recorded, so this chart is descriptive rather than a population estimate.</p>",
+                unsafe_allow_html=True,
+            )
+
+            inputs = st.session_state.get("latest_inputs")
+            prediction = st.session_state.get("latest_prediction")
+            if inputs is not None and prediction is not None:
+                st.subheader("Latest estimate explanation")
+                frame = build_feature_frame(inputs)
+                local_values, _ = local_shap_values(bundle, frame)
+                local_figure = local_contribution_figure(FEATURE_NAMES, local_values[0])
+                st.pyplot(local_figure, use_container_width=True)
+                plt.close(local_figure)
+                st.caption(
+                    f"Contributions are additive in log-price space for the latest {format_currency(prediction.price)} estimate. Positive values raise the estimate relative to the model reference value; negative values lower it."
+                )
+            else:
+                st.info("Submit an estimate on the Estimate page to view a local explanation.")
+        except Exception:
+            st.info("SHAP explanations are temporarily unavailable. Price inference remains available.")
+
+    section_heading(
+        "Limitations",
+        "The application is a portfolio demonstration of an offline model, not a production valuation service.",
+    )
     st.markdown(
         """
-        This plot summarizes **global feature effects** across a representative
-        sample of homes from the training distribution.
+        - The source data covers California single-family sales from 2025 and may not represent later market conditions.
 
-        Each point represents one home. The horizontal axis shows how a feature
-        impacts the model’s **log-price prediction**, while color indicates whether
-        the feature value is high (red) or low (blue).
+        - The model does not include renovation quality, interior condition, school assignments, views, or current macroeconomic conditions.
+
+        - Validation prevents obvious input errors but does not reproduce every MLS business rule or training-distribution constraint.
+
+        - A point estimate does not express uncertainty and should not be used as an appraisal, lending decision, or financial recommendation.
         """
     )
 
-    background = load_shap_background()
-    global_shap_values = compute_global_shap(background)
 
-    fig, ax = plt.subplots()
-    shap.summary_plot(
-        global_shap_values,
-        background,
-        feature_names=FEATURES,
-        show=False
-    )
-
-    st.pyplot(fig)
-
-    st.caption(
-        "Global SHAP values are shown in log-price space. Features are ordered by "
-        "overall importance across the dataset."
-    )
-
-    # ----------------------------
-    # SHAP: Local Explanation
-    # ----------------------------
-    st.markdown("### SHAP: Local Explanation (Example)")
-
-    st.markdown(
-        """
-        SHAP values explain how each feature contributes to a prediction.
-        The model was trained on **log-transformed sale prices**, so all SHAP
-        values are shown in **log(price) space**.
-        """
-    )
-
-    if "last_input" not in st.session_state:
-        st.warning("Run a prediction first to see a SHAP explanation.")
+def main() -> None:
+    page = render_sidebar()
+    try:
+        bundle = get_model_bundle()
+    except ModelLoadError:
+        st.error("The verified model artifact could not be loaded. Check the repository artifacts and try again.")
         st.stop()
 
-    example_input = st.session_state["last_input"]
-
-    baseline_log = explainer.expected_value
-    baseline_price = np.exp(baseline_log)
-
-    st.info(
-        f"""
-        **Understanding the baseline**
-
-        The baseline value **E[f(X)] = {baseline_log:.3f}** represents the model’s
-        average predicted **log(price)** across the training data.
-
-        Converting this to dollars:
-
-        **Baseline price ≈ ${baseline_price:,.0f}**
-
-        SHAP values below explain how each feature moves the prediction
-        *away from this baseline* to reach the final estimate.
-        """
-    )
-
-    shap_values = explainer.shap_values(example_input)
-
-    fig, ax = plt.subplots()
-    shap.waterfall_plot(
-        shap.Explanation(
-            values=shap_values[0],
-            base_values=baseline_log,
-            data=example_input.iloc[0],
-            feature_names=FEATURES
-        ),
-        show=False
-    )
-
-    st.pyplot(fig)
-
-    final_log = model.predict(example_input)[0]
-    final_price = np.exp(final_log)
-
-    st.success(
-        f"""
-        **Final prediction**
-
-        log(price) = {final_log:.3f}  
-        Estimated sale price ≈ **${final_price:,.0f}**
-        """
-    )
-
-    st.caption(
-        "Positive SHAP values increase the predicted price; negative values decrease it. "
-        "All values are additive in log-price space."
-    )
+    if page == "Estimate":
+        render_estimate_page(bundle)
+    else:
+        render_methodology_page(bundle)
 
 
-
-
-
-
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "model_name": "California Single-Family Home Price XGBoost",
+  "model_variant": "list-unaware",
+  "task": "Predict the sale price of a California single-family residence without using list price.",
+  "artifact": {
+    "file": "xgb_nolist.ubj",
+    "format": "XGBoost UBJSON",
+    "sha256": "04189265593b229ef5c650390940c3869bbf731f06f920bbe8911b7a41680114",
+    "size_bytes": 10817273,
+    "xgboost_version": "3.1.2",
+    "converted_from": {
+      "file": "xgb.pkl",
+      "sha256": "875041cd4e0450cc05cfb2147652f9790e3ca73cdc4f503f4f2bbf4444a44f67",
+      "parity_rows": 303,
+      "maximum_log_prediction_delta": 0.0
+    }
+  },
+  "target": {
+    "name": "ClosePrice",
+    "unit": "USD",
+    "training_transform": "natural logarithm",
+    "inverse_transform": "exponential"
+  },
+  "training": {
+    "population": "California single-family residences recorded as sold",
+    "period": "January through August 2025",
+    "final_rows": 78162,
+    "split_strategy": "Chronological monthly split"
+  },
+  "evaluation": {
+    "period": "September through October 2025",
+    "held_out": true,
+    "metrics": {
+      "r2": 0.9,
+      "mape_percent": 11.19,
+      "mdape_percent": 7.75
+    },
+    "price_bands": [
+      {
+        "band": "Below $500K",
+        "mape_percent": 12.96,
+        "mdape_percent": 7.4
+      },
+      {
+        "band": "$500K to $1M",
+        "mape_percent": 9.64,
+        "mdape_percent": 6.54
+      },
+      {
+        "band": "$1M to $2M",
+        "mape_percent": 11.85,
+        "mdape_percent": 9.07
+      },
+      {
+        "band": "$2M to $5M",
+        "mape_percent": 13.89,
+        "mdape_percent": 11.52
+      }
+    ]
+  },
+  "feature_names": [
+    "DaysOnMarket",
+    "Latitude",
+    "Longitude",
+    "BathroomsTotalInteger",
+    "LivingArea",
+    "FireplaceYN",
+    "YearBuilt",
+    "ParkingTotal",
+    "BedroomsTotal",
+    "PoolPrivateYN",
+    "LotSizeAcres",
+    "Stories"
+  ],
+  "feature_types": [
+    "int",
+    "float",
+    "float",
+    "float",
+    "float",
+    "indicator",
+    "float",
+    "float",
+    "float",
+    "indicator",
+    "float",
+    "float"
+  ],
+  "hyperparameters": {
+    "objective": "reg:squarederror",
+    "n_estimators": 1300,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "explanations": {
+    "background_file": "shap_background.csv",
+    "rows": 300,
+    "sha256": "31f0f0b0f8a792b9e767957686cf3e178ea8d89b45ce646a5d1f24d01d69e1f6",
+    "provenance": "Feature-only explanation sample supplied with the original application. The original sampling procedure was not recorded."
+  },
+  "evidence": {
+    "modeling_notebook": "notebooks/modeling.ipynb",
+    "eda_notebook": "notebooks/eda.ipynb",
+    "price_band_source": "CPU publication-notebook rerun with the documented fixed configuration"
+  }
+}
